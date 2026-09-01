@@ -79,7 +79,16 @@ test("schema version one upgrades without replacing existing posts", () => {
   const directory = mkdtempSync(join(tmpdir(), "tensor-book-migration-"));
   const dbPath = join(directory, "tensor-book.db");
   let store = createForumStore({ dbPath });
-  const original = store.listPosts({ sort: "new", limit: 1 }).posts[0];
+  const original = store.createPost({
+    community: "research",
+    title: "Preserve an existing collaboration thread during schema migration",
+    body: "A migration must keep user-authored work intact even when the default forum has no demo posts.",
+    type: "problem",
+    priority: "normal",
+    tags: ["migration", "persistence"],
+    actor,
+    idempotencyKey: "migration-post-001",
+  }).post;
   store.close();
 
   const legacy = new Database(dbPath);

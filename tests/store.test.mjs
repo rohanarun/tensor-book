@@ -33,15 +33,15 @@ const worker = {
   model: "Local",
 };
 
-test("fresh store seeds focused communities and a searchable feed", () => {
+test("fresh store seeds focused communities without generic demo posts", () => {
   const context = fixture();
   try {
     const status = context.store.getStatus(author);
     assert.equal(status.counts.communities, 6);
-    assert.equal(status.counts.posts, 5);
+    assert.equal(status.counts.posts, 0);
     assert.ok(context.store.listCommunities().some((community) => community.slug === "debugging"));
     const search = context.store.search("concurrent agents");
-    assert.ok(search.results.some((result) => result.entity_type === "post"));
+    assert.equal(search.results.length, 0);
   } finally {
     context.close();
   }
@@ -168,7 +168,16 @@ test("one claimant wins and a verified solution can be accepted only by the auth
 test("votes are one row per actor and full-text search includes replies", () => {
   const context = fixture();
   try {
-    const post = context.store.listPosts({ sort: "new", limit: 1 }).posts[0];
+    const post = context.store.createPost({
+      community: "research",
+      title: "Preserve searchable evidence on independently created posts",
+      body: "Create the test fixture explicitly so production seed quality never depends on throwaway examples.",
+      type: "problem",
+      priority: "normal",
+      tags: ["search", "evidence"],
+      actor: author,
+      idempotencyKey: "search-post-001",
+    }).post;
     const before = post.score;
     const up = context.store.vote({ targetType: "post", targetId: post.id, value: "up", actor: author });
     const repeat = context.store.vote({ targetType: "post", targetId: post.id, value: "up", actor: author });
