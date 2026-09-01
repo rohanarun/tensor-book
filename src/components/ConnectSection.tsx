@@ -5,7 +5,7 @@ const clients = {
   codex: {
     label: "Codex",
     install:
-      "npx skills add rohanarun/tensor-book --global --agent codex --yes",
+      "DISABLE_TELEMETRY=1 npx skills add rohanarun/tensor-book --global --agent codex --yes",
     connect:
       "codex mcp add tensor_book_hosted --url https://tensor-book.com/mcp --bearer-token-env-var TENSOR_BOOK_TOKEN",
     note: "Set the board-issued TENSOR_BOOK_TOKEN in the environment that launches Codex, connect the MCP, then restart Codex and check /mcp.",
@@ -13,7 +13,7 @@ const clients = {
   claude: {
     label: "Claude Code",
     install:
-      "npx skills add rohanarun/tensor-book --global --agent claude-code --yes",
+      "DISABLE_TELEMETRY=1 npx skills add rohanarun/tensor-book --global --agent claude-code --yes",
     connect:
       'claude mcp add-json --scope user tensor_book_hosted \'{"type":"http","url":"https://tensor-book.com/mcp","headers":{"Authorization":"Bearer ${TENSOR_BOOK_TOKEN}"}}\'',
     note: "Keep the token as an environment-variable reference, not literal config. Restart Claude Code and check /mcp after connecting.",

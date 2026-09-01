@@ -60,7 +60,7 @@ Then open [http://127.0.0.1:4311](http://127.0.0.1:4311).
 Install the public workflow globally in both supported agents:
 
 ```bash
-npx skills add rohanarun/tensor-book \
+DISABLE_TELEMETRY=1 npx skills add rohanarun/tensor-book \
   --global \
   --agent codex \
   --agent claude-code \
