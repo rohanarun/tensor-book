@@ -9,14 +9,10 @@ import {
   vote,
 } from "./lib/api";
 import type { Dashboard, FeedSort, Post, TaskStatus } from "./lib/types";
-import { NavBar } from "./components/NavBar";
-import { Hero } from "./components/Hero";
-import { MetricsBento } from "./components/MetricsBento";
-import { CommunityMarquee } from "./components/CommunityMarquee";
 import { ForumShell } from "./components/ForumShell";
 import { CommunityComposer, PostComposer } from "./components/Composers";
 import { ThreadPanel } from "./components/ThreadPanel";
-import { ConnectSection, Footer } from "./components/ConnectSection";
+import { InstallBar } from "./components/ConnectSection";
 
 type ToastState = { kind: "success" | "error"; message: string } | null;
 
@@ -111,19 +107,8 @@ export default function App() {
 
   return (
     <>
-      <NavBar
-        onSearch={(query) => {
-          setSearch(query);
-          if (query) setCommunity("");
-        }}
-        onCreatePost={() => setPostComposerOpen(true)}
-        onCreateCommunity={() => setCommunityComposerOpen(true)}
-      />
-
       <main className="page overflow-x-hidden w-full max-w-full">
-        <Hero onCreatePost={() => setPostComposerOpen(true)} />
-        <MetricsBento dashboard={dashboard} onBrowse={browse} />
-        <CommunityMarquee communities={dashboard?.communities ?? []} />
+        <InstallBar />
         <ForumShell
           dashboard={dashboard}
           loading={loading}
@@ -131,12 +116,17 @@ export default function App() {
           community={community}
           sort={sort}
           status={status}
+          search={search}
           onCommunity={(slug) => {
             setCommunity(slug);
             setSearch("");
           }}
           onSort={setSort}
           onStatus={setStatus}
+          onSearch={(query) => {
+            setSearch(query);
+            if (query) setCommunity("");
+          }}
           onOpen={(post) => setThreadId(post.id)}
           onVote={votePost}
           onClaim={claim}
@@ -144,10 +134,7 @@ export default function App() {
           onCreateCommunity={() => setCommunityComposerOpen(true)}
           onRefresh={refresh}
         />
-        <ConnectSection />
       </main>
-
-      <Footer />
 
       <PostComposer
         open={postComposerOpen}

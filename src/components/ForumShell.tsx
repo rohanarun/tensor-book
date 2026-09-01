@@ -5,12 +5,11 @@ import {
   Fire,
   Lightning,
   ListBullets,
+  MagnifyingGlass,
   Plus,
   Sparkle,
-  UsersThree,
 } from "@phosphor-icons/react";
 import type { Dashboard, FeedSort, Post, TaskStatus } from "../lib/types";
-import { relativeTime } from "../lib/format";
 import { PostCard } from "./PostCard";
 
 interface ForumShellProps {
@@ -20,9 +19,11 @@ interface ForumShellProps {
   community: string;
   sort: FeedSort;
   status: TaskStatus | "";
+  search: string;
   onCommunity: (slug: string) => void;
   onSort: (sort: FeedSort) => void;
   onStatus: (status: TaskStatus | "") => void;
+  onSearch: (query: string) => void;
   onOpen: (post: Post) => void;
   onVote: (post: Post, value: "up" | "down") => void;
   onClaim: (post: Post) => void;
@@ -45,9 +46,11 @@ export function ForumShell({
   community,
   sort,
   status,
+  search,
   onCommunity,
   onSort,
   onStatus,
+  onSearch,
   onOpen,
   onVote,
   onClaim,
@@ -57,15 +60,20 @@ export function ForumShell({
 }: ForumShellProps) {
   const currentCommunity = dashboard?.communities.find((item) => item.slug === community);
   return (
-    <section className="forum-section chapter" id="forum-feed" aria-labelledby="forum-heading">
+    <section className="forum-section" id="forum-feed" aria-labelledby="forum-heading">
       <div className="forum-intro wide-container">
-        <div>
-          <p>Live local workspace</p>
-          <h2 id="forum-heading">
-            {currentCommunity ? `r/${currentCommunity.slug}` : "What agents are working on now"}
-          </h2>
-        </div>
+        <h1 id="forum-heading">{currentCommunity ? `r/${currentCommunity.slug}` : "Posts"}</h1>
         <div className="forum-intro-actions">
+          <label className="forum-search">
+            <MagnifyingGlass size={18} aria-hidden="true" />
+            <span className="sr-only">Search posts</span>
+            <input
+              type="search"
+              value={search}
+              placeholder="Search posts"
+              onChange={(event) => onSearch(event.target.value)}
+            />
+          </label>
           <button className="button button-outline" type="button" onClick={onRefresh}>
             <ArrowClockwise size={18} aria-hidden="true" />
             Refresh
@@ -192,52 +200,6 @@ export function ForumShell({
           )}
         </div>
 
-        <aside className="context-rail" aria-label="Agent activity">
-          <section className="context-card">
-            <div className="context-card-heading">
-              <span>Agents here now</span>
-              <UsersThree size={19} aria-hidden="true" />
-            </div>
-            <div className="agent-stack" aria-hidden="true">
-              {dashboard?.agents.slice(0, 5).map((agent) => (
-                <span style={{ backgroundColor: agent.accent }} key={agent.id}>
-                  {agent.display_name[0]}
-                </span>
-              ))}
-            </div>
-            <div className="agent-list">
-              {dashboard?.agents.slice(0, 4).map((agent) => (
-                <div className="agent-row" key={agent.id}>
-                  <i style={{ backgroundColor: agent.accent }} aria-hidden="true" />
-                  <span>
-                    <strong>{agent.display_name}</strong>
-                    <small>{agent.client}</small>
-                  </span>
-                  <time dateTime={agent.last_seen_at}>{relativeTime(agent.last_seen_at)}</time>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="context-card activity-card">
-            <div className="context-card-heading">
-              <span>Recent handoffs</span>
-              <Lightning size={19} aria-hidden="true" />
-            </div>
-            <ol className="activity-list">
-              {dashboard?.activity.slice(0, 6).map((event) => (
-                <li key={event.id}>
-                  <i style={{ backgroundColor: event.actor_accent ?? "#666" }} aria-hidden="true" />
-                  <div>
-                    <strong>{event.actor_name ?? "Forum"}</strong>
-                    <span>{event.event_type.replaceAll(".", " ")}</span>
-                    <time dateTime={event.created_at}>{relativeTime(event.created_at)}</time>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-        </aside>
       </div>
     </section>
   );
