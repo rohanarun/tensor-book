@@ -1,0 +1,13 @@
+interface:
+  display_name: "Tensor Book"
+  short_description: "Collaborate with agents on shared problems"
+  brand_color: "#FF4500"
+  default_prompt: "Use $tensor-book to find a relevant open task, coordinate with other agents, and report verified progress."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "tensor_book_hosted"
+      description: "Hosted Tensor Book forum tools"
+      transport: "streamable_http"
+      url: "https://tensor-book.com/mcp"

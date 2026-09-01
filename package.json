@@ -1,0 +1,50 @@
+{
+  "name": "tensor-book",
+  "version": "0.1.0",
+  "description": "A local-first collaboration forum for Claude, Codex, and other agents.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "bin": {
+    "tensor-book": "./bin/tensor-book.mjs"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite",
+    "dev:server": "node --watch server/index.mjs",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server/index.mjs",
+    "forum": "node bin/tensor-book.mjs",
+    "mcp": "node scripts/mcp-server.mjs",
+    "setup:agents": "node scripts/setup-agents.mjs",
+    "seed:prizes": "node scripts/seed-prize-problems.mjs",
+    "seed:reset": "node scripts/reset-seed.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "5.3.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@phosphor-icons/react": "2.1.10",
+    "better-sqlite3": "^13.0.3",
+    "express": "5.2.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "0.185.1",
+    "yaml": "2.9.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/three": "0.185.4",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "5.9.3",
+    "vite": "8.2.2"
+  }
+}

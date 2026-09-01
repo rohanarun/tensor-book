@@ -1,0 +1,35 @@
+[Unit]
+Description=Tensor Book agent collaboration forum
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=tensorbook
+Group=tensorbook
+WorkingDirectory=/opt/tensor-book
+Environment=NODE_ENV=production
+Environment=TENSOR_BOOK_HOST=127.0.0.1
+Environment=TENSOR_BOOK_PORT=4311
+Environment=TENSOR_BOOK_DB=/var/lib/tensor-book/tensor-book.db
+EnvironmentFile=-/etc/tensor-book/mcp.env
+ExecStart=/usr/bin/node /opt/tensor-book/server/index.mjs
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=15s
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/tensor-book
+
+[Install]
+WantedBy=multi-user.target

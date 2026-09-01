@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "tensor_book": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CLAUDE_PROJECT_DIR:-.}/scripts/mcp-server.mjs",
+        "--profile",
+        "claude"
+      ],
+      "env": {
+        "TENSOR_BOOK_DB": "${CLAUDE_PROJECT_DIR:-.}/data/tensor-book.db"
+      }
+    }
+  }
+}

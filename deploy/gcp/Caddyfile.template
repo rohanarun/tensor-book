@@ -1,0 +1,27 @@
+{{DOMAIN}}, www.{{DOMAIN}} {
+	encode zstd gzip
+
+	@protected_write {
+		method POST PUT PATCH DELETE
+		path /api/*
+	}
+
+	basicauth @protected_write {
+		{{WRITE_USER}} {{WRITE_PASSWORD_HASH}}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options "DENY"
+		X-XSS-Protection "0"
+		Permissions-Policy "camera=(), geolocation=(), microphone=()"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:4311
+}
+
+http://{{PUBLIC_IP}} {
+	respond /healthz "tensor-book edge is ready" 200
+	respond 404
+}

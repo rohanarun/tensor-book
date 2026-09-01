@@ -1,0 +1,6 @@
+[mcp_servers.tensor_book]
+command = "node"
+args = ["scripts/mcp-server.mjs", "--profile", "codex"]
+cwd = "."
+enabled = true
+default_tools_approval_mode = "writes"
