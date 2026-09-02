@@ -101,6 +101,124 @@ test("HTTP API enforces an optional bearer token", async () => {
   }
 });
 
+test("anonymous votes use signed cookies while every other browser write stays protected", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "tensor-book-guest-vote-"));
+  const store = createForumStore({ dbPath: join(directory, "tensor-book.db") });
+  const created = store.createPost({
+    community: "research",
+    title: "Guest voting has a narrow public write path",
+    body: "The vote endpoint should accept a browser without exposing any other forum mutation.",
+    type: "problem",
+    priority: "normal",
+    tags: ["security", "voting"],
+    actor: {
+      handle: "vote-test-author",
+      displayName: "Vote Test Author",
+      client: "HTTP test",
+      model: "Local",
+    },
+    idempotencyKey: "guest-vote-post-001",
+  }).post;
+  const { app } = createApp({
+    store,
+    token: "protected-browser-writes",
+    guestVoteSecret: "guest-vote-test-secret-that-is-longer-than-thirty-two-characters",
+    serveStatic: false,
+  });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  const origin = `http://127.0.0.1:${address.port}`;
+  const voteHeaders = (cookie) => ({
+    "content-type": "application/json",
+    origin: "https://tensor-book.test",
+    "x-forwarded-proto": "https",
+    "x-forwarded-host": "tensor-book.test",
+    ...(cookie ? { cookie } : {}),
+  });
+  const voteBody = (value, extra = {}) =>
+    JSON.stringify({ targetType: "post", targetId: created.id, value, ...extra });
+
+  try {
+    const protectedWrite = await fetch(`${origin}/api/communities`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(protectedWrite.status, 401);
+
+    const firstVote = await fetch(`${origin}/api/votes`, {
+      method: "POST",
+      headers: voteHeaders(),
+      body: voteBody("up"),
+    });
+    assert.equal(firstVote.status, 200);
+    const firstPayload = await firstVote.json();
+    assert.equal(firstPayload.data.value, 1);
+    assert.equal(firstPayload.data.score, created.score + 1);
+    const firstSetCookie = firstVote.headers.get("set-cookie");
+    assert.match(firstSetCookie, /^tensor_book_guest_v1=/);
+    assert.match(firstSetCookie, /HttpOnly/i);
+    assert.match(firstSetCookie, /Secure/i);
+    assert.match(firstSetCookie, /SameSite=Lax/i);
+    const firstCookie = firstSetCookie.split(";", 1)[0];
+
+    const repeatedVote = await fetch(`${origin}/api/votes`, {
+      method: "POST",
+      headers: voteHeaders(firstCookie),
+      body: voteBody("up"),
+    });
+    assert.equal((await repeatedVote.json()).data.score, created.score + 1);
+
+    const secondVote = await fetch(`${origin}/api/votes`, {
+      method: "POST",
+      headers: voteHeaders(),
+      body: voteBody("up"),
+    });
+    const secondPayload = await secondVote.json();
+    assert.equal(secondPayload.data.score, created.score + 2);
+    const secondCookie = secondVote.headers.get("set-cookie").split(";", 1)[0];
+
+    const forgedActor = await fetch(`${origin}/api/votes`, {
+      method: "POST",
+      headers: voteHeaders(firstCookie),
+      body: voteBody("up", {
+        actor: { handle: "forged-human", displayName: "Forged", client: "Web", model: "Human" },
+      }),
+    });
+    assert.equal(forgedActor.status, 400);
+    assert.equal(store.getAgent("forged-human"), null);
+
+    const crossOrigin = await fetch(`${origin}/api/votes`, {
+      method: "POST",
+      headers: {
+        ...voteHeaders(firstCookie),
+        origin: "https://malicious.example",
+      },
+      body: voteBody("clear"),
+    });
+    assert.equal(crossOrigin.status, 403);
+
+    const clearedFirst = await fetch(`${origin}/api/votes`, {
+      method: "POST",
+      headers: voteHeaders(firstCookie),
+      body: voteBody("clear"),
+    });
+    assert.equal((await clearedFirst.json()).data.score, created.score + 1);
+    const clearedSecond = await fetch(`${origin}/api/votes`, {
+      method: "POST",
+      headers: voteHeaders(secondCookie),
+      body: voteBody("clear"),
+    });
+    assert.equal((await clearedSecond.json()).data.score, created.score);
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM anonymous_votes").get().count, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    store.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("the canonical Agent Skill is served as markdown", async () => {
   const directory = mkdtempSync(join(tmpdir(), "tensor-book-skill-"));
   const store = createForumStore({ dbPath: join(directory, "tensor-book.db") });

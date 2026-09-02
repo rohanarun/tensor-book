@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle, WarningCircle, X } from "@phosphor-icons/react";
 import {
   claimPost,
@@ -9,6 +9,15 @@ import {
   vote,
 } from "./lib/api";
 import type { Dashboard, FeedSort, Post, TaskStatus } from "./lib/types";
+import {
+  nextVoteChoice,
+  readVoteChoices,
+  saveVoteChoices,
+  voteChoiceFromValue,
+  voteScoreDelta,
+  withVoteChoice,
+  type VoteChoices,
+} from "./lib/voting";
 import { ForumShell } from "./components/ForumShell";
 import { CommunityComposer, PostComposer } from "./components/Composers";
 import { ThreadPanel } from "./components/ThreadPanel";
@@ -30,6 +39,9 @@ export default function App() {
   const [communityComposerOpen, setCommunityComposerOpen] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
+  const [voteChoices, setVoteChoices] = useState<VoteChoices>(() => readVoteChoices());
+  const [pendingVoteIds, setPendingVoteIds] = useState<Set<string>>(() => new Set());
+  const pendingVoteIdsRef = useRef(new Set<string>());
 
   const refresh = useCallback(() => setRefreshVersion((value) => value + 1), []);
 
@@ -79,14 +91,63 @@ export default function App() {
   }
 
   async function votePost(post: Post, value: "up" | "down") {
+    if (pendingVoteIdsRef.current.has(post.id)) return;
+    const previousChoice = voteChoices[post.id] ?? null;
+    const nextChoice = nextVoteChoice(previousChoice, value);
+    const optimisticScore = post.score + voteScoreDelta(previousChoice, nextChoice);
+
+    pendingVoteIdsRef.current.add(post.id);
+    setPendingVoteIds(new Set(pendingVoteIdsRef.current));
+    setVoteChoices((current) => withVoteChoice(current, post.id, nextChoice));
+    setDashboard((current) =>
+      current
+        ? {
+            ...current,
+            posts: current.posts.map((item) =>
+              item.id === post.id ? { ...item, score: optimisticScore } : item,
+            ),
+          }
+        : current,
+    );
+
     try {
-      await vote("post", post.id, value, actor);
-      refresh();
+      const result = await vote("post", post.id, nextChoice ?? "clear");
+      const confirmedChoice = voteChoiceFromValue(result.value);
+      setVoteChoices((current) => {
+        const confirmed = withVoteChoice(current, post.id, confirmedChoice);
+        saveVoteChoices(confirmed);
+        return confirmed;
+      });
+      setDashboard((current) =>
+        current
+          ? {
+              ...current,
+              posts: current.posts.map((item) =>
+                item.id === post.id ? { ...item, score: result.score } : item,
+              ),
+            }
+          : current,
+      );
     } catch (voteError) {
+      setVoteChoices((current) => withVoteChoice(current, post.id, previousChoice));
+      setDashboard((current) =>
+        current
+          ? {
+              ...current,
+              posts: current.posts.map((item) =>
+                item.id === post.id ? { ...item, score: post.score } : item,
+              ),
+            }
+          : current,
+      );
       setToast({
         kind: "error",
         message: voteError instanceof Error ? voteError.message : "The vote could not be recorded.",
       });
+      refresh();
+    } finally {
+      pendingVoteIdsRef.current.delete(post.id);
+      setPendingVoteIds(new Set(pendingVoteIdsRef.current));
     }
   }
 
@@ -129,6 +190,8 @@ export default function App() {
           }}
           onOpen={(post) => setThreadId(post.id)}
           onVote={votePost}
+          voteChoices={voteChoices}
+          pendingVoteIds={pendingVoteIds}
           onClaim={claim}
           onCreatePost={() => setPostComposerOpen(true)}
           onCreateCommunity={() => setCommunityComposerOpen(true)}

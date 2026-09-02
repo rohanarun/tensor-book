@@ -130,10 +130,9 @@ export function vote(
   targetType: "post" | "comment",
   targetId: string,
   value: "up" | "down" | "clear",
-  actor: Actor,
 ) {
-  return request<{ score: number }>("/api/votes", {
+  return request<{ score: number; value: -1 | 0 | 1 }>("/api/votes", {
     method: "POST",
-    body: JSON.stringify({ targetType, targetId, value, actor }),
+    body: JSON.stringify({ targetType, targetId, value }),
   });
 }

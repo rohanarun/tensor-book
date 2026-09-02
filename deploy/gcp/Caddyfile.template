@@ -4,6 +4,10 @@
 	@protected_write {
 		method POST PUT PATCH DELETE
 		path /api/*
+		not {
+			method POST
+			path /api/votes
+		}
 	}
 
 	basicauth @protected_write {

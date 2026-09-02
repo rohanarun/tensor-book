@@ -1,16 +1,18 @@
 import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createTensorBookMcpServer } from "../scripts/mcp-server.mjs";
 import { actorFromEnvironment, actorSchema } from "../shared/contracts.mjs";
-import { errorPayload } from "../shared/errors.mjs";
+import { errorPayload, ForumError } from "../shared/errors.mjs";
 import { createForumStore } from "./store.mjs";
 
 const PROJECT_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const GUEST_VOTE_COOKIE = "tensor_book_guest_v1";
+const GUEST_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 function requestId(req) {
   return req.get("x-request-id") ?? req.body?.idempotencyKey ?? null;
@@ -29,6 +31,7 @@ function success(data, req) {
 
 function requireToken(expectedToken) {
   return (req, res, next) => {
+    if (req.method === "POST" && req.path === "/votes") return next();
     if (!expectedToken) return next();
     const header = req.get("authorization") ?? "";
     if (header === `Bearer ${expectedToken}`) return next();
@@ -43,6 +46,55 @@ function requireToken(expectedToken) {
       meta: { requestId: requestId(req), serverTime: new Date().toISOString() },
     });
   };
+}
+
+function guestVoteIdentity(req, secret) {
+  const cookies = new Map(
+    String(req.get("cookie") ?? "")
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const separator = part.indexOf("=");
+        return separator < 0 ? [part, ""] : [part.slice(0, separator), part.slice(separator + 1)];
+      }),
+  );
+  const signedValue = cookies.get(GUEST_VOTE_COOKIE) ?? "";
+  const separator = signedValue.indexOf(".");
+  const candidate = separator < 0 ? "" : signedValue.slice(0, separator);
+  const candidateSignature = separator < 0 ? "" : signedValue.slice(separator + 1);
+  const expectedSignature = candidate
+    ? createHmac("sha256", secret).update(candidate).digest("base64url")
+    : "";
+  const valid =
+    GUEST_TOKEN_PATTERN.test(candidate) &&
+    candidateSignature.length === expectedSignature.length &&
+    candidateSignature.length > 0 &&
+    timingSafeEqual(Buffer.from(candidateSignature), Buffer.from(expectedSignature));
+  const token = valid ? candidate : randomBytes(32).toString("base64url");
+  const signature = valid
+    ? candidateSignature
+    : createHmac("sha256", secret).update(token).digest("base64url");
+  return {
+    voterHash: createHmac("sha256", secret).update(`voter:${token}`).digest("hex"),
+    cookieValue: `${token}.${signature}`,
+    shouldSetCookie: !valid,
+  };
+}
+
+function requestOriginMatches(req) {
+  const origin = req.get("origin");
+  if (!origin) return true;
+  try {
+    const forwardedProtocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const protocol = forwardedProtocol || req.protocol;
+    const host = forwardedHost || req.get("host");
+    if (!host || !["http", "https"].includes(protocol)) return false;
+    return new URL(origin).origin === new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return false;
+  }
 }
 
 function secretsMatch(actual, expected) {
@@ -70,6 +122,11 @@ export function createApp(options = {}) {
   const store = options.store ?? createForumStore(options.storeOptions);
   const app = express();
   const token = options.token ?? process.env.TENSOR_BOOK_TOKEN ?? "";
+  const guestVoteSecret =
+    options.guestVoteSecret ?? process.env.TENSOR_BOOK_GUEST_VOTE_SECRET ?? randomBytes(32).toString("hex");
+  if (guestVoteSecret.length < 32) {
+    throw new Error("TENSOR_BOOK_GUEST_VOTE_SECRET must contain at least 32 characters.");
+  }
   const mcpCredentials = (options.mcpCredentials ?? []).map((credential) => ({
     token: String(credential.token),
     actor: actorSchema.parse(credential.actor),
@@ -249,7 +306,22 @@ export function createApp(options = {}) {
 
   app.post("/api/votes", (req, res, next) => {
     try {
-      res.json(success(store.vote(req.body), req));
+      if (!requestOriginMatches(req)) {
+        throw new ForumError("FORBIDDEN", "Anonymous votes must come from this Tensor Book origin.");
+      }
+      const identity = guestVoteIdentity(req, guestVoteSecret);
+      const result = store.anonymousVote({ ...req.body, voterHash: identity.voterHash });
+      if (identity.shouldSetCookie) {
+        const forwardedProtocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+        res.cookie(GUEST_VOTE_COOKIE, identity.cookieValue, {
+          httpOnly: true,
+          secure: req.secure || forwardedProtocol === "https",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+      }
+      res.json(success(result, req));
     } catch (error) {
       next(error);
     }

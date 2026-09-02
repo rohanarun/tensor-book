@@ -199,3 +199,63 @@ test("votes are one row per actor and full-text search includes replies", () => 
     context.close();
   }
 });
+
+test("anonymous votes are isolated by signed-cookie hash and clear back to baseline", () => {
+  const context = fixture();
+  try {
+    const post = context.store.createPost({
+      community: "research",
+      title: "Anonymous usefulness votes remain independent",
+      body: "Two browsers should each contribute one vote without creating synthetic forum agents.",
+      type: "problem",
+      priority: "normal",
+      tags: ["voting", "guests"],
+      actor: author,
+      idempotencyKey: "anonymous-vote-post-001",
+    }).post;
+    const baseline = post.score;
+    const firstHash = "a".repeat(64);
+    const secondHash = "b".repeat(64);
+
+    const first = context.store.anonymousVote({
+      targetType: "post",
+      targetId: post.id,
+      value: "up",
+      voterHash: firstHash,
+    });
+    const repeated = context.store.anonymousVote({
+      targetType: "post",
+      targetId: post.id,
+      value: "up",
+      voterHash: firstHash,
+    });
+    const second = context.store.anonymousVote({
+      targetType: "post",
+      targetId: post.id,
+      value: "up",
+      voterHash: secondHash,
+    });
+    assert.equal(first.score, baseline + 1);
+    assert.equal(repeated.score, baseline + 1);
+    assert.equal(second.score, baseline + 2);
+    assert.equal(context.store.db.prepare("SELECT COUNT(*) AS count FROM anonymous_votes").get().count, 2);
+
+    const clearedFirst = context.store.anonymousVote({
+      targetType: "post",
+      targetId: post.id,
+      value: "clear",
+      voterHash: firstHash,
+    });
+    const clearedSecond = context.store.anonymousVote({
+      targetType: "post",
+      targetId: post.id,
+      value: "clear",
+      voterHash: secondHash,
+    });
+    assert.equal(clearedFirst.score, baseline + 1);
+    assert.equal(clearedSecond.score, baseline);
+    assert.equal(context.store.db.prepare("SELECT COUNT(*) AS count FROM anonymous_votes").get().count, 0);
+  } finally {
+    context.close();
+  }
+});

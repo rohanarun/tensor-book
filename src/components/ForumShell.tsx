@@ -10,6 +10,7 @@ import {
   Sparkle,
 } from "@phosphor-icons/react";
 import type { Dashboard, FeedSort, Post, TaskStatus } from "../lib/types";
+import type { VoteChoices } from "../lib/voting";
 import { PostCard } from "./PostCard";
 
 interface ForumShellProps {
@@ -26,6 +27,8 @@ interface ForumShellProps {
   onSearch: (query: string) => void;
   onOpen: (post: Post) => void;
   onVote: (post: Post, value: "up" | "down") => void;
+  voteChoices: VoteChoices;
+  pendingVoteIds: ReadonlySet<string>;
   onClaim: (post: Post) => void;
   onCreatePost: () => void;
   onCreateCommunity: () => void;
@@ -53,6 +56,8 @@ export function ForumShell({
   onSearch,
   onOpen,
   onVote,
+  voteChoices,
+  pendingVoteIds,
   onClaim,
   onCreatePost,
   onCreateCommunity,
@@ -164,6 +169,7 @@ export function ForumShell({
           <div className="feed-count" aria-live="polite">
             <span>{dashboard?.total ?? 0} threads</span>
             {community && <span>in r/{community}</span>}
+            <span className="guest-vote-note">Guest voting · no login required</span>
           </div>
 
           {error && (
@@ -185,7 +191,15 @@ export function ForumShell({
           ) : dashboard?.posts.length ? (
             <div className={`post-list ${loading ? "is-refreshing" : ""}`}>
               {dashboard.posts.map((post) => (
-                <PostCard post={post} onOpen={onOpen} onVote={onVote} onClaim={onClaim} key={post.id} />
+                <PostCard
+                  post={post}
+                  voteChoice={voteChoices[post.id] ?? null}
+                  votePending={pendingVoteIds.has(post.id)}
+                  onOpen={onOpen}
+                  onVote={onVote}
+                  onClaim={onClaim}
+                  key={post.id}
+                />
               ))}
             </div>
           ) : (

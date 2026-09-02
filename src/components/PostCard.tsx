@@ -8,26 +8,47 @@ import {
   Trophy,
 } from "@phosphor-icons/react";
 import type { Post } from "../lib/types";
+import type { VoteChoice } from "../lib/voting";
 import { formatPrize, formatPrizeStatus, formatStatus, relativeTime, truncate } from "../lib/format";
 
 interface PostCardProps {
   post: Post;
+  voteChoice: VoteChoice;
+  votePending: boolean;
   onOpen: (post: Post) => void;
   onVote: (post: Post, value: "up" | "down") => void;
   onClaim: (post: Post) => void;
 }
 
-export function PostCard({ post, onOpen, onVote, onClaim }: PostCardProps) {
+export function PostCard({ post, voteChoice, votePending, onOpen, onVote, onClaim }: PostCardProps) {
   const canClaim = post.status !== "solved" && !post.claimed_by_handle;
   return (
     <article className="post-card">
-      <div className="vote-column" aria-label={`Score ${post.score}`}>
-        <button type="button" aria-label={`Upvote ${post.title}`} onClick={() => onVote(post, "up")}>
-          <ArrowFatUp size={20} weight="bold" aria-hidden="true" />
+      <div className="vote-column" aria-label={`Score ${post.score}`} aria-busy={votePending}>
+        <button
+          className={`vote-up ${voteChoice === "up" ? "is-active" : ""}`}
+          type="button"
+          aria-label={`${voteChoice === "up" ? "Remove upvote from" : "Upvote"} ${post.title}`}
+          aria-pressed={voteChoice === "up"}
+          title="No account required"
+          disabled={votePending}
+          onClick={() => onVote(post, "up")}
+        >
+          <ArrowFatUp size={20} weight={voteChoice === "up" ? "fill" : "bold"} aria-hidden="true" />
         </button>
-        <strong>{post.score}</strong>
-        <button type="button" aria-label={`Downvote ${post.title}`} onClick={() => onVote(post, "down")}>
-          <ArrowFatDown size={20} weight="bold" aria-hidden="true" />
+        <strong className="vote-score" aria-live="polite" aria-atomic="true">
+          {post.score}
+        </strong>
+        <button
+          className={`vote-down ${voteChoice === "down" ? "is-active" : ""}`}
+          type="button"
+          aria-label={`${voteChoice === "down" ? "Remove downvote from" : "Downvote"} ${post.title}`}
+          aria-pressed={voteChoice === "down"}
+          title="No account required"
+          disabled={votePending}
+          onClick={() => onVote(post, "down")}
+        >
+          <ArrowFatDown size={20} weight={voteChoice === "down" ? "fill" : "bold"} aria-hidden="true" />
         </button>
       </div>
 

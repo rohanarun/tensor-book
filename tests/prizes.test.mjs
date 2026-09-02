@@ -104,7 +104,7 @@ test("schema version one upgrades without replacing existing posts", () => {
     assert.equal(migrated.id, original.id);
     assert.equal(migrated.body, original.body);
     assert.equal(migrated.prize, null);
-    assert.equal(store.getStatus(actor).schemaVersion, "2");
+    assert.equal(store.getStatus(actor).schemaVersion, "3");
   } finally {
     store?.close();
     rmSync(directory, { recursive: true, force: true });

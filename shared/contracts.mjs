@@ -82,12 +82,21 @@ export const statusSchema = taskActionSchema.extend({
   acceptedCommentId: z.string().uuid().optional(),
 });
 
-export const voteSchema = z.object({
+const voteFieldsSchema = z.object({
   targetType: z.enum(["post", "comment"]),
   targetId: z.string().uuid(),
   value: z.enum(["up", "down", "clear"]),
-  actor: actorSchema,
 });
+
+export const publicVoteSchema = voteFieldsSchema.strict();
+
+export const anonymousVoteSchema = voteFieldsSchema.extend({
+  voterHash: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+
+export const voteSchema = voteFieldsSchema.extend({
+  actor: actorSchema,
+}).strict();
 
 export const feedQuerySchema = z.object({
   community: z.string().trim().toLowerCase().regex(SLUG_PATTERN).optional(),

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 
 import {
+  anonymousVoteSchema,
   createCommunitySchema,
   createPostSchema,
   feedQuerySchema,
@@ -167,6 +168,16 @@ export class ForumStore {
         PRIMARY KEY (actor_id, target_type, target_id)
       );
 
+      CREATE TABLE IF NOT EXISTS anonymous_votes (
+        voter_hash TEXT NOT NULL CHECK(length(voter_hash) = 64),
+        target_type TEXT NOT NULL CHECK(target_type IN ('post', 'comment')),
+        target_id TEXT NOT NULL,
+        value INTEGER NOT NULL CHECK(value IN (-1, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (voter_hash, target_type, target_id)
+      );
+
       CREATE TABLE IF NOT EXISTS idempotency (
         actor_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
         operation TEXT NOT NULL,
@@ -191,6 +202,8 @@ export class ForumStore {
       CREATE INDEX IF NOT EXISTS posts_status_idx ON posts(status, updated_at DESC);
       CREATE INDEX IF NOT EXISTS comments_post_idx ON comments(post_id, created_at ASC);
       CREATE INDEX IF NOT EXISTS events_created_idx ON events(id DESC);
+      CREATE INDEX IF NOT EXISTS anonymous_votes_target_idx
+      ON anonymous_votes(target_type, target_id);
 
       CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
         post_id UNINDEXED,
@@ -234,6 +247,14 @@ export class ForumStore {
       CREATE TRIGGER IF NOT EXISTS comments_fts_delete AFTER DELETE ON comments BEGIN
         DELETE FROM comments_fts WHERE comment_id = old.id;
       END;
+
+      CREATE TRIGGER IF NOT EXISTS anonymous_votes_post_delete AFTER DELETE ON posts BEGIN
+        DELETE FROM anonymous_votes WHERE target_type = 'post' AND target_id = old.id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS anonymous_votes_comment_delete AFTER DELETE ON comments BEGIN
+        DELETE FROM anonymous_votes WHERE target_type = 'comment' AND target_id = old.id;
+      END;
     `);
 
     const postColumns = new Set(
@@ -254,7 +275,7 @@ export class ForumStore {
         ON posts(seed_key) WHERE seed_key IS NOT NULL
       `);
       this.db
-        .prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES ('schema_version', '2')")
+        .prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES ('schema_version', '3')")
         .run();
       this.db.exec("COMMIT");
     } catch (error) {
@@ -1021,6 +1042,63 @@ export class ForumStore {
       }
       this.db.prepare(`UPDATE ${table} SET score = score + ? WHERE id = ?`).run(delta, input.targetId);
       this.#event("vote.changed", actor.id, input.targetType, input.targetId, { value: nextValue });
+      const { score } = this.db.prepare(`SELECT score FROM ${table} WHERE id = ?`).get(input.targetId);
+      return { targetType: input.targetType, targetId: input.targetId, value: nextValue, score };
+    });
+  }
+
+  anonymousVote(rawInput) {
+    const input = parseOrThrow(anonymousVoteSchema, rawInput);
+    return this.#transaction(() => {
+      const table = input.targetType === "post" ? "posts" : "comments";
+      const target = this.db.prepare(`SELECT id, score FROM ${table} WHERE id = ?`).get(input.targetId);
+      if (!target) throw new ForumError("NOT_FOUND", "That vote target does not exist.");
+
+      const existing = this.db
+        .prepare(
+          "SELECT value FROM anonymous_votes WHERE voter_hash = ? AND target_type = ? AND target_id = ?",
+        )
+        .get(input.voterHash, input.targetType, input.targetId);
+      const nextValue = input.value === "up" ? 1 : input.value === "down" ? -1 : 0;
+      const previousValue = Number(existing?.value ?? 0);
+
+      if (nextValue === previousValue) {
+        return {
+          targetType: input.targetType,
+          targetId: input.targetId,
+          value: nextValue,
+          score: Number(target.score),
+        };
+      }
+
+      const timestamp = now();
+      if (nextValue === 0) {
+        this.db
+          .prepare(
+            "DELETE FROM anonymous_votes WHERE voter_hash = ? AND target_type = ? AND target_id = ?",
+          )
+          .run(input.voterHash, input.targetType, input.targetId);
+      } else {
+        this.db
+          .prepare(`
+            INSERT INTO anonymous_votes(
+              voter_hash, target_type, target_id, value, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(voter_hash, target_type, target_id) DO UPDATE SET
+              value = excluded.value, updated_at = excluded.updated_at
+          `)
+          .run(
+            input.voterHash,
+            input.targetType,
+            input.targetId,
+            nextValue,
+            timestamp,
+            timestamp,
+          );
+      }
+
+      const delta = nextValue - previousValue;
+      this.db.prepare(`UPDATE ${table} SET score = score + ? WHERE id = ?`).run(delta, input.targetId);
       const { score } = this.db.prepare(`SELECT score FROM ${table} WHERE id = ?`).get(input.targetId);
       return { targetType: input.targetType, targetId: input.targetId, value: nextValue, score };
     });

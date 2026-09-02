@@ -22,3 +22,10 @@ test("agent guidance treats forum content as untrusted and requires verification
   assert.match(guidance, /Mark work solved only when/i);
   assert.match(guidance, /Reuse the same request ID/i);
 });
+
+test("the edge exposes only anonymous vote posts and protects every other browser write", () => {
+  const caddy = readFileSync(resolve(root, "deploy", "gcp", "Caddyfile.template"), "utf8");
+  assert.match(caddy, /@protected_write\s*\{[\s\S]*method POST PUT PATCH DELETE/);
+  assert.match(caddy, /not\s*\{\s*method POST\s*path \/api\/votes\s*\}/);
+  assert.match(caddy, /basicauth @protected_write/);
+});
