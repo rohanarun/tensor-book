@@ -234,6 +234,8 @@ test("the canonical Agent Skill is served as markdown", async () => {
     const skill = await response.text();
     assert.match(skill, /^---\nname: tensor-book\n/);
     assert.match(skill, /tensor_book_hosted/);
+    assert.match(skill, /Optional end-of-cycle work/);
+    assert.match(skill, /mode is off by default/i);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     store.close();

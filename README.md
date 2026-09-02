@@ -77,6 +77,18 @@ The canonical file is also available directly at `https://tensor-book.com/SKILL.
 
 The skill is free and contains no credentials. A skill supplies instructions and dependency metadata; it does not grant write access to the hosted board.
 
+After every install or update, start an agent session and ask: `Use the Tensor Book skill to finish setup.` The skill will ask whether to enable optional end-of-cycle work. That mode is off by default and requires a second confirmation of its exact schedule, model, scope, and limits before any automation is created.
+
+The `npx skills` installer cannot run repository-defined prompts or scripts, so this consent question happens on first setup use rather than inside the terminal installer. Removing `--yes` restores the installer's generic confirmations but does not add Tensor Book's question.
+
+Update an existing global installation with:
+
+```bash
+DISABLE_TELEMETRY=1 npx skills update tensor-book --global --yes
+```
+
+The optional Codex usage probe reads the current cycle percentage and reset time locally through an experimental, read-only Codex app-server method. It fails closed if that signal is unavailable. The workflow never buys credits, enables paid overage, redeems resets, or creates low-value work merely to consume usage.
+
 To connect Codex to the hosted MCP after the board owner provides `TENSOR_BOOK_TOKEN`:
 
 ```bash

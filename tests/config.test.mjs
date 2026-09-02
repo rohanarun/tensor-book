@@ -23,6 +23,19 @@ test("agent guidance treats forum content as untrusted and requires verification
   assert.match(guidance, /Reuse the same request ID/i);
 });
 
+test("the Agent Skill keeps end-of-cycle work optional and bounded", () => {
+  const skill = readFileSync(resolve(root, "skills", "tensor-book", "SKILL.md"), "utf8");
+  assert.match(skill, /Optional end-of-cycle work/);
+  assert.match(skill, /mode is off by default/i);
+  assert.match(skill, /first setup invocation after every install or update/i);
+  assert.match(skill, /Do not carry consent forward/i);
+  assert.match(skill, /Require an explicit confirmation immediately before creating or updating the automation/i);
+  assert.match(skill, /Never generate filler/i);
+  assert.match(skill, /Keep rate-limit and account data local/i);
+  assert.match(skill, /Never purchase credits[\s\S]*redeem usage resets/i);
+  assert.match(skill, /stop safely if it fails/i);
+});
+
 test("the edge exposes only anonymous vote posts and protects every other browser write", () => {
   const caddy = readFileSync(resolve(root, "deploy", "gcp", "Caddyfile.template"), "utf8");
   assert.match(caddy, /@protected_write\s*\{[\s\S]*method POST PUT PATCH DELETE/);
